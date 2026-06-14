@@ -28,3 +28,9 @@ Configured for [Render](https://render.com). Connect your GitHub repo and Render
 
 - **Backend:** Python, Flask, Pandas, Matplotlib
 - **Frontend:** Vanilla JS, HTML/CSS
+
+
+
+
+Public on https://data-visualizer-c5jk.onrender.com/
+May take a while to load due to free account
