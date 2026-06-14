@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DataViz</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  HEADER                                                                -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<header class="app-header">
+  <div class="logo">
+    <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="6" fill="#4361ee"/>
+      <rect x="5" y="16" width="4" height="7" rx="1.5" fill="white"/>
+      <rect x="12" y="10" width="4" height="13" rx="1.5" fill="white"/>
+      <rect x="19" y="5"  width="4" height="18" rx="1.5" fill="white"/>
+    </svg>
+    DataViz
+  </div>
+  <div class="header-center" id="data-status"></div>
+  <button class="btn-generate" id="generate-btn" disabled>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+    </svg>
+    Generate
+  </button>
+</header>
+
+<!-- Regen notice (shown after data changes when charts exist) -->
+<div class="regen-notice hidden" id="regen-notice">
+  <span>Your data changed — charts may be out of date.</span>
+  <button class="regen-notice-btn" id="regen-notice-btn">Generate New Charts</button>
+  <button class="regen-notice-close" id="regen-notice-close" title="Dismiss">✕</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  TOP PANEL — DATA INPUT                                                -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="panel panel-input" id="panel-input">
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab active" data-tab="upload">Upload File</button>
+    <button class="tab" data-tab="sheets">Google Sheets</button>
+    <button class="tab" data-tab="manual">Manual Table</button>
+    <button class="tab" data-tab="paste">Paste Text</button>
+  </div>
+
+  <!-- Tab panes -->
+  <div class="tab-body">
+
+    <!-- Upload -->
+    <div class="tab-pane active" id="pane-upload">
+      <div class="drop-zone" id="drop-zone">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <p>Drop a file here, or <label for="file-input" class="link">browse</label></p>
+        <p class="muted">CSV · TSV · TXT · XLSX · LOG</p>
+        <input type="file" id="file-input" accept=".csv,.txt,.tsv,.log,.xls,.xlsx" hidden />
+      </div>
+      <div class="file-badge hidden" id="file-badge">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span id="file-name"></span>
+        <button class="icon-btn" id="remove-file" title="Remove">✕</button>
+      </div>
+    </div>
+
+    <!-- Sheets -->
+    <div class="tab-pane" id="pane-sheets">
+      <label class="field-label">Google Sheets URL</label>
+      <div class="input-row">
+        <input type="url" id="sheets-url" class="text-input"
+               placeholder="https://docs.google.com/spreadsheets/d/…" />
+        <button class="btn-secondary" id="load-sheets-btn">Load</button>
+      </div>
+      <p class="muted" style="margin-top:8px">Sheet must be shared: <em>Anyone with the link → Viewer</em></p>
+    </div>
+
+    <!-- Manual table -->
+    <div class="tab-pane" id="pane-manual">
+      <div class="table-toolbar">
+        <button class="ghost-btn" id="add-row-btn">+ Row</button>
+        <button class="ghost-btn" id="add-col-btn">+ Column</button>
+        <button class="ghost-btn danger" id="del-row-btn">− Row</button>
+        <button class="ghost-btn danger" id="del-col-btn">− Column</button>
+        <button class="ghost-btn" id="clear-table-btn">Clear</button>
+      </div>
+      <div class="tbl-scroll">
+        <table id="manual-table" class="editable-table">
+          <thead id="manual-head"></thead>
+          <tbody id="manual-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Paste text -->
+    <div class="tab-pane" id="pane-paste">
+      <label class="field-label">Paste raw text or log output</label>
+      <textarea id="paste-area" class="paste-area"
+        placeholder="Epoch 1 - Accuracy: 0.88, Loss: 0.12&#10;Epoch 2 - Accuracy: 0.91, Loss: 0.09&#10;Epoch 3 - Accuracy: 0.93, Loss: 0.07&#10;&#10;Numbers are extracted automatically."></textarea>
+      <div class="input-row" style="margin-top:8px">
+        <button class="btn-secondary" id="parse-text-btn">Extract &amp; Preview</button>
+        <span class="muted" id="extract-hint">Supports "Key: value" pairs, labeled data, or plain numbers.</span>
+      </div>
+    </div>
+
+  </div><!-- /tab-body -->
+
+  <!-- Preview table (shown when data is loaded) -->
+  <div class="preview-strip hidden" id="preview-strip">
+    <div class="preview-strip-head">
+      <span class="preview-label" id="preview-label">Preview</span>
+      <span class="preview-meta" id="preview-meta"></span>
+    </div>
+    <div class="tbl-scroll preview-tbl-wrap">
+      <table class="preview-table">
+        <thead id="preview-head"></thead>
+        <tbody id="preview-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /panel-input -->
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  BOTTOM PANEL — RESULTS                                                -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="panel panel-results" id="panel-results">
+  <div class="results-empty" id="results-empty">
+    <div class="results-empty-icon">
+      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <path d="M18 20V10M12 20V4M6 20v-6"/>
+      </svg>
+    </div>
+    <h3>Ready to make your charts!</h3>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><span>Upload a file, paste a link, or type your data above</span></div>
+      <div class="step"><div class="step-num">2</div><span>Click the <strong>Generate</strong> button in the top-right</span></div>
+      <div class="step"><div class="step-num">3</div><span>Click any chart to edit colors, labels, and download it</span></div>
+    </div>
+  </div>
+  <div id="results-charts" class="hidden">
+    <div class="results-header">
+      <div class="results-title">
+        Suggested Charts
+        <span class="results-count" id="results-count">0</span>
+      </div>
+    </div>
+    <div class="graph-grid" id="graph-grid"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  EDITOR OVERLAY                                                         -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="editor-overlay hidden" id="editor-overlay">
+  <div class="editor-wrap">
+
+    <!-- editor top bar -->
+    <div class="editor-topbar">
+      <button class="ed-close" id="ed-close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 5 5 12 12 19"/>
+        </svg>
+        Back
+      </button>
+      <span class="ed-chart-name" id="ed-chart-name">Chart Editor</span>
+      <span class="ed-refresh-status" id="ed-refresh-status"></span>
+    </div>
+
+    <!-- editor body -->
+    <div class="editor-body">
+
+      <!-- preview area -->
+      <div class="editor-canvas">
+        <img id="ed-img" alt="Chart preview" />
+        <div class="ed-loading hidden" id="ed-loading">
+          <div class="spinner-sm"></div>
+        </div>
+      </div>
+
+      <!-- sidebar -->
+      <div class="editor-sidebar">
+
+        <div class="ed-section">
+          <div class="ed-section-title">Labels</div>
+          <label class="ed-field">
+            <span>Title</span>
+            <input type="text" id="ed-title" placeholder="Auto-generated" />
+          </label>
+          <label class="ed-field">
+            <span>X Axis</span>
+            <input type="text" id="ed-xlabel" placeholder="Auto" />
+          </label>
+          <label class="ed-field">
+            <span>Y Axis</span>
+            <input type="text" id="ed-ylabel" placeholder="Auto" />
+          </label>
+        </div>
+
+        <div class="ed-section">
+          <div class="ed-section-title">Color Scheme</div>
+          <div class="scheme-grid" id="scheme-grid"></div>
+        </div>
+
+        <div class="ed-section">
+          <div class="ed-section-title">Display</div>
+
+          <div class="toggle-row">
+            <span>Grid lines</span>
+            <label class="toggle">
+              <input type="checkbox" id="ed-grid" />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <span>Legend</span>
+            <label class="toggle">
+              <input type="checkbox" id="ed-legend" checked />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+
+          <div class="slider-row">
+            <span>Font size</span>
+            <input type="range" id="ed-fontsize" min="8" max="16" value="10" />
+            <span class="slider-val" id="ed-fontsize-val">10</span>
+          </div>
+
+          <div class="bg-row">
+            <span>Background</span>
+            <div class="bg-btns">
+              <button class="bg-btn active" data-bg="white">Light</button>
+              <button class="bg-btn" data-bg="dark">Dark</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="ed-section">
+          <div class="ed-section-title">Download</div>
+          <div class="dl-grid">
+            <button class="dl-btn" data-fmt="png">
+              <span class="dl-ext">PNG</span>
+              <span class="dl-desc">Raster · best for web</span>
+            </button>
+            <button class="dl-btn" data-fmt="svg">
+              <span class="dl-ext">SVG</span>
+              <span class="dl-desc">Vector · scalable</span>
+            </button>
+            <button class="dl-btn" data-fmt="pdf">
+              <span class="dl-ext">PDF</span>
+              <span class="dl-desc">Print-ready</span>
+            </button>
+            <button class="dl-btn" data-fmt="jpeg">
+              <span class="dl-ext">JPEG</span>
+              <span class="dl-desc">Compressed photo</span>
+            </button>
+          </div>
+        </div>
+
+      </div><!-- /sidebar -->
+    </div><!-- /editor-body -->
+  </div><!-- /editor-wrap -->
+</div><!-- /editor-overlay -->
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  SPINNER  &  TOAST                                                      -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="spinner-overlay hidden" id="spinner-overlay">
+  <div class="spinner-box">
+    <div class="spinner"></div>
+    <p id="spinner-msg">Generating…</p>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
